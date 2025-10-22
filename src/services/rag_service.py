@@ -149,8 +149,12 @@ class RAGService:
         Returns:
             List of dicts with keys: title, url, snippet
         """
-        # Use existing search method
-        documents = self.search(query, limit=k)
+        # If WEAVIATE_URL is missing or client unavailable, use curated stubs
+        if os.getenv("WEAVIATE_URL", "") == "" or not self.client:
+            documents = self._get_mock_results(query, k)
+        else:
+            # Use existing search method
+            documents = self.search(query, limit=k)
         
         # Format results with snippets
         results = []
@@ -228,6 +232,12 @@ def get_curated_stubs() -> List[Dict[str, Any]]:
             "url": "https://docs.aws.amazon.com/ec2/instance-types.html"
         },
         {
+            "title": "Lambda Cold Start Tips",
+            "content": "Reduce AWS Lambda cold starts by using Provisioned Concurrency, smaller deployment packages, keeping functions warm, and choosing languages with faster startup times.",
+            "service": "Lambda",
+            "url": "https://docs.aws.amazon.com/lambda/latest/dg/provisioned-concurrency.html"
+        },
+        {
             "title": "AWS Cost Management",
             "content": "AWS Cost Management helps you understand and manage your AWS costs and usage. Use AWS Cost Explorer to visualize, understand, and manage your AWS costs and usage over time.",
             "service": "Cost Management",
@@ -238,6 +248,12 @@ def get_curated_stubs() -> List[Dict[str, Any]]:
             "content": "With Amazon S3, you pay only for what you use. There is no minimum fee. Pricing is based on storage, requests, and data transfer.",
             "service": "S3",
             "url": "https://aws.amazon.com/s3/pricing/"
+        },
+        {
+            "title": "ALB vs NLB: When to Use Which",
+            "content": "Use Application Load Balancer (ALB) for HTTP/HTTPS and Layer 7 features like path-based routing; use Network Load Balancer (NLB) for ultra-low latency TCP/UDP at Layer 4 and static IP support.",
+            "service": "Elastic Load Balancing",
+            "url": "https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/what-is-load-balancing.html"
         },
         {
             "title": "EC2 Auto Scaling",

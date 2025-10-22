@@ -219,11 +219,16 @@ class ExcalidrawService:
         Returns:
             Dictionary with save metadata
         """
-        timestamp = datetime.now().isoformat()
+        timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
         
-        # Generate filename
-        filename = f"{tenant}_{session}_{timestamp}.json"
-        filepath = self.storage_path / filename
+        # Ensure tenant/session directories exist
+        dir_path = self.storage_path / tenant / session
+        dir_path.mkdir(parents=True, exist_ok=True)
+
+        # Generate filename per spec: ts.excalidraw
+        filename = f"{timestamp}.excalidraw"
+        relative_key = f"{tenant}/{session}/{filename}"
+        filepath = dir_path / filename
         
         # Save board JSON
         try:
@@ -231,7 +236,7 @@ class ExcalidrawService:
                 json.dump(board, f, indent=2)
             
             # Update manifest
-            manifest = self._update_manifest(tenant, session, filename)
+            manifest = self._update_manifest(tenant, session, relative_key)
             
             logger.info(f"Saved board to {filepath}")
             
@@ -239,6 +244,7 @@ class ExcalidrawService:
                 "success": True,
                 "filepath": str(filepath),
                 "filename": filename,
+                "key": relative_key,
                 "timestamp": timestamp,
                 "manifest": manifest
             }
@@ -276,7 +282,7 @@ class ExcalidrawService:
             manifest = {"boards": {}}
         
         # Create key for this board
-        board_key = f"{tenant}_{session}"
+        board_key = f"{tenant}/{session}"
         
         # Initialize board entry if needed
         if board_key not in manifest["boards"]:
@@ -288,7 +294,7 @@ class ExcalidrawService:
         
         # Add to history
         manifest["boards"][board_key]["history"].append({
-            "filename": filename,
+            "key": filename,
             "timestamp": datetime.now().isoformat()
         })
         
