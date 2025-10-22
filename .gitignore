@@ -59,3 +59,7 @@ weaviate_data/
 generated_cfn/
 *.cfn.json
 *.cfn.yaml
+
+# Diagrams (but keep the directory)
+mock_data/diagrams/*.json
+!mock_data/diagrams/.gitkeep
