@@ -217,20 +217,47 @@ def render_agent_badge(agent_name: str):
     return f'<span class="agent-badge {badge_class}">{display_name}</span>'
 
 
-def render_metadata_badges(provider: str, latency_ms: float):
-    """Render provider and latency badges."""
+def render_metadata_badges(provider: str, latency_ms: float, mode: str = "Live"):
+    """Render provider, latency, and mode badges."""
+    # Determine mode based on provider
+    if provider.lower() == "mock":
+        mode = "Mock"
+    
     provider_badge = f'<span class="provider-badge">🔌 {provider}</span>'
     latency_badge = f'<span class="latency-badge">⚡ {latency_ms:.0f}ms</span>'
-    return provider_badge + latency_badge
+    mode_badge = f'<span class="provider-badge">📊 Mode: {mode}</span>'
+    return provider_badge + latency_badge + mode_badge
 
 
 def render_reasoning_trace(reasoning: str):
-    """Render reasoning trace."""
-    return f'<div class="reasoning-box">💭 <strong>Reasoning:</strong> {reasoning}</div>'
+    """Render reasoning trace in an expander."""
+    if not reasoning:
+        return ""
+    
+    # Format reasoning as a list if it's a string
+    if isinstance(reasoning, str):
+        reasoning_items = [reasoning]
+    elif isinstance(reasoning, list):
+        reasoning_items = reasoning
+    else:
+        reasoning_items = [str(reasoning)]
+    
+    # Create expander content
+    content = '<div class="reasoning-box">'
+    content += '<strong>💭 Agent Reasoning:</strong><br>'
+    for item in reasoning_items:
+        content += f'• {item}<br>'
+    content += '</div>'
+    
+    return content
 
 
 def render_chat_interface(preferred_agent: str):
     """Render the main chat interface."""
+    # Get use_mock setting
+    use_mock = os.getenv("USE_MOCK_DATA", "true").lower() == "true"
+    mode = "Mock" if use_mock else "Live"
+    
     # Display chat messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
@@ -245,21 +272,23 @@ def render_chat_interface(preferred_agent: str):
                     unsafe_allow_html=True
                 )
                 
-                # Show provider and latency badges
+                # Show provider, latency, and mode badges
                 st.markdown(
                     render_metadata_badges(
                         metadata.get("provider", "Unknown"),
-                        metadata.get("latency_ms", 0)
+                        metadata.get("latency_ms", 0),
+                        mode
                     ),
                     unsafe_allow_html=True
                 )
                 
-                # Show reasoning trace
-                if "reasoning" in metadata:
-                    st.markdown(
-                        render_reasoning_trace(metadata["reasoning"]),
-                        unsafe_allow_html=True
-                    )
+                # Show reasoning trace in expander
+                if "reasoning" in metadata and metadata["reasoning"]:
+                    with st.expander("🔍 Show Reasoning"):
+                        st.markdown(
+                            render_reasoning_trace(metadata["reasoning"]),
+                            unsafe_allow_html=True
+                        )
     
     # Chat input
     if prompt := st.chat_input("Ask me anything about AWS..."):
@@ -288,14 +317,19 @@ def render_chat_interface(preferred_agent: str):
                 st.markdown(
                     render_metadata_badges(
                         result.get("provider", "Unknown"),
-                        result.get("latency_ms", 0)
+                        result.get("latency_ms", 0),
+                        mode
                     ),
                     unsafe_allow_html=True
                 )
-                st.markdown(
-                    render_reasoning_trace(result.get("reasoning", "")),
-                    unsafe_allow_html=True
-                )
+                
+                # Show reasoning in expander
+                if result.get("reasoning"):
+                    with st.expander("🔍 Show Reasoning"):
+                        st.markdown(
+                            render_reasoning_trace(result.get("reasoning", "")),
+                            unsafe_allow_html=True
+                        )
                 
                 # Add assistant message to chat
                 st.session_state.messages.append({
@@ -315,7 +349,8 @@ def render_tools_tab():
         infra_desc = st.text_area(
             "Describe your infrastructure:",
             placeholder="e.g., I need a VPC with EC2 instances and an RDS database",
-            height=150
+            height=150,
+            key="cfn_desc"
         )
         
         if st.button("Generate CloudFormation Template"):
@@ -334,6 +369,54 @@ def render_tools_tab():
                     )
             else:
                 st.warning("Please describe your infrastructure first")
+        
+        # Regenerate CFN from latest board
+        st.markdown("---")
+        st.markdown("#### Regenerate from Diagram")
+        
+        if st.button("🔄 Regenerate CFN from Latest Board"):
+            # Check if we have a saved board
+            from pathlib import Path
+            manifest_path = Path("./mock_data/diagrams/manifest.json")
+            
+            if manifest_path.exists():
+                with open(manifest_path, 'r') as f:
+                    manifest = json.load(f)
+                
+                # Get latest board
+                boards = manifest.get("boards", {})
+                if boards:
+                    # Get first board's latest version
+                    first_board_key = list(boards.keys())[0]
+                    latest_file = boards[first_board_key].get("latest_key")
+                    
+                    if latest_file:
+                        board_path = Path(f"./mock_data/diagrams/{latest_file}")
+                        if board_path.exists():
+                            with open(board_path, 'r') as f:
+                                board = json.load(f)
+                            
+                            # Regenerate CFN
+                            cfn_template = st.session_state.excalidraw_service.board_to_cfn(board)
+                            
+                            st.success("✓ Regenerated from latest board")
+                            st.code(cfn_template, language="yaml")
+                            
+                            st.download_button(
+                                label="Download Regenerated Template",
+                                data=cfn_template,
+                                file_name="board-cloudformation.yaml",
+                                mime="text/yaml",
+                                key="download_regen"
+                            )
+                        else:
+                            st.warning("Board file not found")
+                    else:
+                        st.info("No boards saved yet. Generate a diagram first.")
+                else:
+                    st.info("No boards saved yet. Generate a diagram first.")
+            else:
+                st.info("No boards saved yet. Generate a diagram first.")
     
     with col2:
         st.subheader("🎨 Architecture Diagram")
@@ -341,7 +424,8 @@ def render_tools_tab():
         arch_desc = st.text_area(
             "Describe your architecture:",
             placeholder="e.g., Web application with load balancer, EC2 instances, and RDS",
-            height=150
+            height=150,
+            key="arch_desc"
         )
         
         if st.button("Generate Diagram"):
@@ -349,12 +433,19 @@ def render_tools_tab():
                 with st.spinner("Generating diagram..."):
                     diagram = st.session_state.excalidraw_service.generate_diagram(arch_desc)
                     
+                    # Save the diagram
+                    save_result = st.session_state.excalidraw_service.save_board(diagram)
+                    
+                    if save_result.get("success"):
+                        st.success(f"✓ Diagram saved: {save_result['filename']}")
+                    
                     # Show diagram JSON
                     st.json(diagram, expanded=False)
                     
                     # Excalidraw URL
                     url = st.session_state.excalidraw_service.get_embed_url(diagram)
-                    st.markdown(f"[Open in Excalidraw]({url})")
+                    st.markdown(f"### [🎨 Open in Excalidraw]({url})")
+                    st.info("Click the link above to edit your diagram in Excalidraw")
                     
                     # Download button
                     diagram_json = json.dumps(diagram, indent=2)
@@ -362,7 +453,8 @@ def render_tools_tab():
                         label="Download Diagram JSON",
                         data=diagram_json,
                         file_name="architecture-diagram.json",
-                        mime="application/json"
+                        mime="application/json",
+                        key="download_diagram"
                     )
             else:
                 st.warning("Please describe your architecture first")
@@ -372,8 +464,20 @@ def render_cost_analysis_tab():
     """Render the cost analysis tab."""
     st.subheader("💰 Cost Analysis & Optimization")
     
+    # Toggle for Live Cost Explorer
+    col_toggle1, col_toggle2 = st.columns([3, 1])
+    with col_toggle2:
+        use_live_ce = st.checkbox("Live Cost Explorer", value=False, help="Use live AWS Cost Explorer data (requires AWS credentials)")
+    
     # Get cost data
-    cost_data = st.session_state.aws_service.get_cost_breakdown()
+    if use_live_ce:
+        try:
+            cost_data = st.session_state.aws_service.get_cost_breakdown()
+        except Exception as e:
+            st.warning(f"Failed to get live cost data: {e}. Using mock data.")
+            cost_data = st.session_state.aws_service.get_cost_breakdown()
+    else:
+        cost_data = st.session_state.aws_service.get_cost_breakdown()
     
     col1, col2 = st.columns(2)
     
@@ -398,6 +502,18 @@ def render_cost_analysis_tab():
                 st.write(f"**Description:** {opp['description']}")
                 st.write(f"**Difficulty:** {opp['difficulty']}")
                 st.write(f"**Action:** {opp['action']}")
+    
+    # Citations panel from RAG
+    st.markdown("---")
+    st.markdown("### 📚 Related Documentation")
+    
+    # Get relevant docs about cost optimization
+    if st.session_state.rag_service:
+        from src.services.rag_service import format_citations
+        hits = st.session_state.rag_service.hybrid_search("AWS cost optimization best practices", k=3)
+        if hits:
+            citations = format_citations(hits)
+            st.markdown(citations)
 
 
 def main():
