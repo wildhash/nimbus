@@ -26,16 +26,23 @@ Be concise, accurate, and helpful. Always cite the source when referencing docum
     
     def process(self, user_input: str, context: Optional[Dict[str, Any]] = None) -> ModelResponse:
         """Process documentation queries with RAG."""
+        from src.services.rag_service import format_citations
         
         # Retrieve relevant documents if RAG service is available
         relevant_docs = ""
+        citations = ""
         if self.rag_service:
-            docs = self.rag_service.search(user_input, limit=3)
-            if docs:
+            # Use hybrid search for better results
+            hits = self.rag_service.hybrid_search(user_input, k=3)
+            if hits:
+                # Format citations
+                citations = format_citations(hits)
+                
+                # Build context for LLM
                 relevant_docs = "\n\nRelevant Documentation:\n"
-                for i, doc in enumerate(docs, 1):
-                    relevant_docs += f"\n{i}. {doc.get('title', 'AWS Documentation')}\n"
-                    relevant_docs += f"   {doc.get('content', '')[:500]}...\n"
+                for i, hit in enumerate(hits, 1):
+                    relevant_docs += f"\n{i}. {hit.get('title', 'AWS Documentation')}\n"
+                    relevant_docs += f"   {hit.get('snippet', '')}...\n"
         
         # Build prompt with context and retrieved docs
         prompt = user_input + relevant_docs
@@ -49,6 +56,10 @@ Be concise, accurate, and helpful. Always cite the source when referencing docum
             max_tokens=1500,
             temperature=0.5
         )
+        
+        # Append citations to response text if available
+        if citations:
+            response.text = response.text + "\n\n### Sources\n\n" + citations
         
         return response
     
