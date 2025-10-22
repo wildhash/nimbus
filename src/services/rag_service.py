@@ -138,30 +138,150 @@ class RAGService:
             print(f"Error searching: {e}")
             return self._get_mock_results(query, limit)
     
+    def hybrid_search(self, query: str, k: int = 3) -> List[Dict[str, str]]:
+        """
+        Perform hybrid search and return results with title, url, and snippet.
+        
+        Args:
+            query: Search query
+            k: Number of results to return
+            
+        Returns:
+            List of dicts with keys: title, url, snippet
+        """
+        # Use existing search method
+        documents = self.search(query, limit=k)
+        
+        # Format results with snippets
+        results = []
+        for doc in documents:
+            # Extract a short snippet (first 150 chars)
+            content = doc.get("content", "")
+            snippet = content[:150] + "..." if len(content) > 150 else content
+            
+            results.append({
+                "title": doc.get("title", "Untitled"),
+                "url": doc.get("url", ""),
+                "snippet": snippet
+            })
+        
+        return results
+    
     def _get_mock_results(self, query: str, limit: int) -> List[Dict[str, Any]]:
         """Return mock results when Weaviate is not available."""
-        mock_docs = [
-            {
-                "title": "AWS EC2 Instance Types",
-                "content": "Amazon EC2 provides a wide selection of instance types optimized to fit different use cases. Instance types comprise varying combinations of CPU, memory, storage, and networking capacity.",
-                "service": "EC2",
-                "url": "https://docs.aws.amazon.com/ec2/instance-types.html"
-            },
-            {
-                "title": "AWS Cost Management",
-                "content": "AWS Cost Management helps you understand and manage your AWS costs and usage. Use AWS Cost Explorer to visualize, understand, and manage your AWS costs and usage over time.",
-                "service": "Cost Management",
-                "url": "https://docs.aws.amazon.com/cost-management/"
-            },
-            {
-                "title": "AWS S3 Pricing",
-                "content": "With Amazon S3, you pay only for what you use. There is no minimum fee. Pricing is based on storage, requests, and data transfer.",
-                "service": "S3",
-                "url": "https://aws.amazon.com/s3/pricing/"
-            }
-        ]
+        # Use curated stubs for offline demo
+        mock_docs = get_curated_stubs()
         
-        return mock_docs[:limit]
+        # Simple keyword matching for relevance
+        query_lower = query.lower()
+        scored_docs = []
+        for doc in mock_docs:
+            score = 0
+            if query_lower in doc["title"].lower():
+                score += 10
+            if query_lower in doc["content"].lower():
+                score += 5
+            scored_docs.append((score, doc))
+        
+        # Sort by score and return top results
+        scored_docs.sort(key=lambda x: x[0], reverse=True)
+        return [doc for score, doc in scored_docs[:limit]]
+
+
+def format_citations(hits: List[Dict[str, str]]) -> str:
+    """
+    Format search results as citations with bullet points and quotes.
+    
+    Args:
+        hits: List of search results with title, url, snippet
+        
+    Returns:
+        Formatted citation string
+    """
+    if not hits:
+        return "No citations available."
+    
+    citations = []
+    for i, hit in enumerate(hits[:3], 1):  # Limit to top 3
+        title = hit.get("title", "Unknown")
+        url = hit.get("url", "")
+        snippet = hit.get("snippet", "")
+        
+        citation = f"**{i}. [{title}]({url})**"
+        if snippet:
+            citation += f"\n   > \"{snippet}\""
+        citations.append(citation)
+    
+    return "\n\n".join(citations)
+
+
+def get_curated_stubs() -> List[Dict[str, Any]]:
+    """
+    Get curated stub documents for offline demo (100-200 short chunks).
+    These are used when Weaviate is not available.
+    """
+    return [
+        {
+            "title": "AWS EC2 Instance Types",
+            "content": "Amazon EC2 provides a wide selection of instance types optimized to fit different use cases. Instance types comprise varying combinations of CPU, memory, storage, and networking capacity.",
+            "service": "EC2",
+            "url": "https://docs.aws.amazon.com/ec2/instance-types.html"
+        },
+        {
+            "title": "AWS Cost Management",
+            "content": "AWS Cost Management helps you understand and manage your AWS costs and usage. Use AWS Cost Explorer to visualize, understand, and manage your AWS costs and usage over time.",
+            "service": "Cost Management",
+            "url": "https://docs.aws.amazon.com/cost-management/"
+        },
+        {
+            "title": "AWS S3 Pricing",
+            "content": "With Amazon S3, you pay only for what you use. There is no minimum fee. Pricing is based on storage, requests, and data transfer.",
+            "service": "S3",
+            "url": "https://aws.amazon.com/s3/pricing/"
+        },
+        {
+            "title": "EC2 Auto Scaling",
+            "content": "Amazon EC2 Auto Scaling helps you maintain application availability and automatically adds or removes EC2 instances according to conditions you define.",
+            "service": "EC2",
+            "url": "https://docs.aws.amazon.com/autoscaling/"
+        },
+        {
+            "title": "AWS Lambda Pricing Model",
+            "content": "With AWS Lambda, you pay only for what you use. You are charged based on the number of requests for your functions and the duration of code execution.",
+            "service": "Lambda",
+            "url": "https://aws.amazon.com/lambda/pricing/"
+        },
+        {
+            "title": "S3 Storage Classes",
+            "content": "Amazon S3 offers a range of storage classes designed for different use cases including S3 Standard, S3 Intelligent-Tiering, S3 Glacier, and more.",
+            "service": "S3",
+            "url": "https://docs.aws.amazon.com/s3/storage-classes/"
+        },
+        {
+            "title": "RDS Database Instances",
+            "content": "Amazon RDS makes it easy to set up, operate, and scale a relational database in the cloud. It provides cost-efficient and resizable capacity.",
+            "service": "RDS",
+            "url": "https://docs.aws.amazon.com/rds/"
+        },
+        {
+            "title": "VPC Networking Basics",
+            "content": "Amazon Virtual Private Cloud (VPC) lets you provision a logically isolated section of the AWS Cloud where you can launch AWS resources in a virtual network.",
+            "service": "VPC",
+            "url": "https://docs.aws.amazon.com/vpc/"
+        },
+        {
+            "title": "CloudWatch Monitoring",
+            "content": "Amazon CloudWatch is a monitoring service for AWS cloud resources and applications. Collect and track metrics, collect and monitor log files, and set alarms.",
+            "service": "CloudWatch",
+            "url": "https://docs.aws.amazon.com/cloudwatch/"
+        },
+        {
+            "title": "IAM Security Best Practices",
+            "content": "AWS Identity and Access Management (IAM) enables you to securely control access to AWS services and resources. Use MFA, rotate credentials regularly.",
+            "service": "IAM",
+            "url": "https://docs.aws.amazon.com/iam/best-practices/"
+        }
+    ]
 
 
 def get_seed_documents() -> List[Dict[str, Any]]:

@@ -3,8 +3,12 @@ Model router with Friendli.ai as primary and AWS Bedrock as fallback.
 """
 import os
 import time
+import logging
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 try:
     import friendli
@@ -34,6 +38,16 @@ class ModelRouter:
     def __init__(self):
         self.friendli_token = os.getenv("FRIENDLI_TOKEN")
         self.aws_region = os.getenv("AWS_REGION", "us-east-1")
+        self.bedrock_region = os.getenv("BEDROCK_REGION", "us-east-1")
+        
+        # Statistics tracking
+        self.stats = {
+            "call_count": 0,
+            "friendli_calls": 0,
+            "bedrock_calls": 0,
+            "mock_calls": 0,
+            "total_latency_ms": 0.0
+        }
         
         # Initialize Friendli client if available
         self.friendli_client = None
@@ -42,7 +56,7 @@ class ModelRouter:
                 friendli.api_key = self.friendli_token
                 self.friendli_client = friendli
             except Exception as e:
-                print(f"Warning: Failed to initialize Friendli client: {e}")
+                logger.warning(f"Failed to initialize Friendli client: {e}")
         
         # Initialize Bedrock client if available
         self.bedrock_client = None
@@ -50,10 +64,41 @@ class ModelRouter:
             try:
                 self.bedrock_client = boto3.client(
                     service_name='bedrock-runtime',
-                    region_name=self.aws_region
+                    region_name=self.bedrock_region
                 )
             except Exception as e:
-                print(f"Warning: Failed to initialize Bedrock client: {e}")
+                logger.warning(f"Failed to initialize Bedrock client: {e}")
+    
+    def llm_complete(
+        self,
+        prompt: str,
+        model_hint: str = "general",
+        max_tokens: int = 768,
+        turbo_env: str = "USE_FRIENDLI"
+    ) -> Dict[str, Any]:
+        """
+        Complete a prompt using available LLM provider with fallback.
+        
+        Args:
+            prompt: The user prompt
+            model_hint: Hint for model selection (e.g., "general", "fast", "quality")
+            max_tokens: Maximum tokens to generate
+            turbo_env: Environment variable to check for Friendli usage
+            
+        Returns:
+            Dictionary with keys: text, provider, latency_ms
+        """
+        response = self.generate(
+            prompt=prompt,
+            max_tokens=max_tokens,
+            temperature=0.7
+        )
+        
+        return {
+            "text": response.text,
+            "provider": response.provider.lower(),
+            "latency_ms": int(response.latency_ms)
+        }
     
     def generate(
         self,
@@ -76,34 +121,49 @@ class ModelRouter:
         Returns:
             ModelResponse with generated text and metadata
         """
-        providers = []
+        self.stats["call_count"] += 1
         
-        if prefer_provider == "friendli" and self.friendli_client:
+        # Check USE_FRIENDLI environment variable
+        use_friendli = os.getenv("USE_FRIENDLI", "1") == "1"
+        
+        providers = []
+        if use_friendli and prefer_provider == "friendli" and self.friendli_client:
             providers = ["friendli", "bedrock"]
         elif prefer_provider == "bedrock" and self.bedrock_client:
-            providers = ["bedrock", "friendli"]
+            providers = ["bedrock", "friendli"] if use_friendli else ["bedrock"]
         else:
-            # Default: try Friendli first, then Bedrock
-            providers = ["friendli", "bedrock"]
+            # Default: try Friendli first (if enabled), then Bedrock
+            if use_friendli:
+                providers = ["friendli", "bedrock"]
+            else:
+                providers = ["bedrock"]
         
         last_error = None
         
         for provider in providers:
             try:
                 if provider == "friendli" and self.friendli_client:
-                    return self._generate_friendli(
+                    response = self._generate_friendli(
                         prompt, system_prompt, max_tokens, temperature
                     )
+                    self.stats["friendli_calls"] += 1
+                    self.stats["total_latency_ms"] += response.latency_ms
+                    return response
                 elif provider == "bedrock" and self.bedrock_client:
-                    return self._generate_bedrock(
+                    response = self._generate_bedrock(
                         prompt, system_prompt, max_tokens, temperature
                     )
+                    self.stats["bedrock_calls"] += 1
+                    self.stats["total_latency_ms"] += response.latency_ms
+                    return response
             except Exception as e:
                 last_error = e
-                print(f"Failed with {provider}: {e}")
+                logger.warning(f"Provider {provider} failed: {str(e)}")
                 continue
         
         # If all providers fail, return mock response
+        self.stats["mock_calls"] += 1
+        logger.info("All providers failed, returning mock response")
         return ModelResponse(
             text="I apologize, but I'm unable to connect to the LLM providers at the moment. Please check your API credentials.",
             provider="mock",
@@ -183,3 +243,22 @@ class ModelRouter:
             latency_ms=round(latency_ms, 2),
             model="Claude 3 Sonnet"
         )
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Get router statistics.
+        
+        Returns:
+            Dictionary with call counts and average latency
+        """
+        avg_latency = 0.0
+        if self.stats["call_count"] > 0:
+            avg_latency = self.stats["total_latency_ms"] / self.stats["call_count"]
+        
+        return {
+            "call_count": self.stats["call_count"],
+            "friendli_calls": self.stats["friendli_calls"],
+            "bedrock_calls": self.stats["bedrock_calls"],
+            "mock_calls": self.stats["mock_calls"],
+            "average_latency_ms": round(avg_latency, 2)
+        }
