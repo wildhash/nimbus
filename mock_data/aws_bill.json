@@ -1,0 +1,127 @@
+{
+  "billing_period": {
+    "start": "2024-03-01",
+    "end": "2024-03-31"
+  },
+  "account_id": "123456789012",
+  "total_cost": 1247.89,
+  "currency": "USD",
+  "services": [
+    {
+      "service_name": "Amazon Elastic Compute Cloud",
+      "cost": 456.23,
+      "usage_details": {
+        "instance_hours": 720,
+        "instance_types": ["t3.medium", "t3.large", "m5.xlarge"],
+        "regions": ["us-east-1", "us-west-2"]
+      }
+    },
+    {
+      "service_name": "Amazon Simple Storage Service",
+      "cost": 234.56,
+      "usage_details": {
+        "storage_gb": 1250,
+        "requests": 1500000,
+        "data_transfer_gb": 450
+      }
+    },
+    {
+      "service_name": "Amazon Relational Database Service",
+      "cost": 312.45,
+      "usage_details": {
+        "db_hours": 744,
+        "instance_type": "db.t3.medium",
+        "storage_gb": 100,
+        "backup_storage_gb": 50
+      }
+    },
+    {
+      "service_name": "AWS Data Transfer",
+      "cost": 89.34,
+      "usage_details": {
+        "data_out_gb": 892,
+        "inter_region_gb": 120
+      }
+    },
+    {
+      "service_name": "Amazon CloudWatch",
+      "cost": 45.67,
+      "usage_details": {
+        "metrics": 150,
+        "api_requests": 500000,
+        "log_storage_gb": 25
+      }
+    },
+    {
+      "service_name": "AWS Lambda",
+      "cost": 23.45,
+      "usage_details": {
+        "requests": 5000000,
+        "duration_gb_seconds": 250000
+      }
+    },
+    {
+      "service_name": "Elastic Load Balancing",
+      "cost": 34.56,
+      "usage_details": {
+        "alb_hours": 720,
+        "processed_bytes_gb": 350
+      }
+    },
+    {
+      "service_name": "Amazon VPC",
+      "cost": 12.34,
+      "usage_details": {
+        "nat_gateway_hours": 720,
+        "data_processed_gb": 100
+      }
+    },
+    {
+      "service_name": "Other Services",
+      "cost": 39.29,
+      "usage_details": {
+        "various": "SNS, SQS, Route53, etc."
+      }
+    }
+  ],
+  "cost_breakdown": {
+    "compute": 456.23,
+    "storage": 234.56,
+    "database": 312.45,
+    "data_transfer": 89.34,
+    "monitoring": 45.67,
+    "networking": 46.90,
+    "other": 62.74
+  },
+  "optimization_opportunities": [
+    {
+      "service": "EC2",
+      "issue": "3 instances with <10% CPU utilization",
+      "recommendation": "Stop or downsize idle instances",
+      "estimated_savings": 231.27
+    },
+    {
+      "service": "S3",
+      "issue": "No lifecycle policies on 2 buckets",
+      "recommendation": "Enable lifecycle transitions to cheaper storage",
+      "estimated_savings": 123.50
+    },
+    {
+      "service": "EBS",
+      "issue": "15 GB of unattached volumes",
+      "recommendation": "Delete or attach unused volumes",
+      "estimated_savings": 1.50
+    },
+    {
+      "service": "Snapshots",
+      "issue": "200 GB of snapshots older than 90 days",
+      "recommendation": "Review and delete old snapshots",
+      "estimated_savings": 10.00
+    }
+  ],
+  "tags": {
+    "environment": "production",
+    "department": "engineering",
+    "cost_center": "CC-12345"
+  }
+}
