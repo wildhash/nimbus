@@ -198,9 +198,154 @@ You can also manually select an agent from the sidebar.
 
 ## 🔌 LLM Provider Fallback
 
+Nimbus Copilot uses an intelligent fallback system:
+
 1. **Primary**: Friendli.ai (meta-llama-3.1-70b-instruct)
 2. **Fallback**: AWS Bedrock (Claude 3 Sonnet)
 3. **Mock**: Returns graceful error message if both unavailable
+
+Each response includes badges showing:
+- **Provider**: Which LLM handled the request
+- **Latency**: Response time in milliseconds
+- **Mode**: Mock or Live data mode
+
+## 🔒 Security & IAM
+
+### Minimal IAM Policy
+
+For live AWS integration, use the following minimal IAM policy:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "NimbusCopilotMinimal",
+      "Effect": "Allow",
+      "Action": [
+        "ce:GetCostAndUsage",
+        "ce:GetCostForecast",
+        "ec2:DescribeInstances",
+        "ec2:DescribeSnapshots",
+        "ec2:DescribeVolumes",
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketLocation",
+        "s3:GetLifecycleConfiguration",
+        "cloudwatch:GetMetricStatistics",
+        "cloudformation:ValidateTemplate"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "S3DiagramStorage",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::nimbus-diagrams/*"
+    }
+  ]
+}
+```
+
+### Presigned URLs for Diagrams
+
+Excalidraw diagrams are stored using:
+- **Local storage**: `./mock_data/diagrams/` (default)
+- **S3 storage**: With presigned URLs for secure access (optional)
+
+To enable S3 storage, set `S3_DIAGRAM_BUCKET` in your `.env` file.
+
+### Security Best Practices
+
+1. **Never commit credentials**: Keep `.env` in `.gitignore`
+2. **Use IAM roles**: Prefer EC2/ECS roles over access keys
+3. **Rotate credentials**: Regularly rotate API keys and tokens
+4. **Audit logs**: Enable CloudTrail for AWS API activity
+5. **Least privilege**: Use the minimal IAM policy above
+
+## ⚠️ Limits & Fallbacks
+
+### LLM Provider Limits
+
+| Provider | Rate Limit | Timeout | Fallback |
+|----------|-----------|---------|----------|
+| Friendli.ai | API-dependent | 30s | → Bedrock |
+| AWS Bedrock | API-dependent | 30s | → Mock |
+| Mock | Unlimited | Instant | N/A |
+
+### Cost Explorer Limits
+
+- **API calls**: 5 requests per second
+- **Data retention**: 13 months historical
+- **Fallback**: Mock bill data from `mock_data/aws_bill.json`
+
+### Weaviate Limits
+
+- **Documents**: Unlimited (mock has 10 curated stubs)
+- **Search results**: Max 100 per query (default 3-5)
+- **Fallback**: Curated stub documents with keyword matching
+
+### Excalidraw Limits
+
+- **Board size**: No hard limit (recommended < 1MB)
+- **Storage**: Local filesystem or S3
+- **CFN conversion**: Supports top 8 AWS resource types
+
+## 🎬 Demo Script (5 min)
+
+Follow this script for a quick demonstration:
+
+### Minute 1-2: Setup & Overview
+```bash
+# Start the app
+streamlit run app.py
+```
+- Show the main interface with 4 AI agents
+- Point out the mode toggle (Mock/Live)
+- Highlight the savings meter in the sidebar
+
+### Minute 2-3: Cost Optimization
+1. Navigate to **Cost Analysis** tab
+2. Show current bill breakdown: ~$1,247/month
+3. Point out optimization opportunities:
+   - Idle EC2 instances: Save $231/month
+   - S3 lifecycle policies: Save $123/month
+   - Old snapshots: Save $10/month
+4. Show the citations panel with relevant AWS docs
+
+### Minute 3-4: Chat & Agents
+1. Go to **Chat** tab
+2. Ask: "How can I reduce my EC2 costs?"
+   - Shows Cost Optimizer badge
+   - Displays provider (Friendli.ai or Bedrock)
+   - Shows latency (~150ms)
+   - Click "Show Reasoning" expander
+3. Ask: "What is AWS Lambda?"
+   - Shows Doc Navigator badge
+   - Displays citations from AWS docs
+
+### Minute 4-5: Infrastructure Setup
+1. Navigate to **Tools** tab
+2. **CloudFormation Generator**:
+   - Describe: "VPC with 2 subnets, NAT gateway, and EC2 instance"
+   - Generate template
+   - Download YAML
+3. **Architecture Diagram**:
+   - Describe: "Web app with ALB, Lambda, and DynamoDB"
+   - Generate diagram
+   - Click "Open in Excalidraw"
+4. **CFN Regeneration**:
+   - Click "Regenerate CFN from Latest Board"
+   - Show converted CloudFormation template
+
+### Key Talking Points
+- ✅ **No AWS credentials needed** - Works in mock mode
+- ✅ **Intelligent fallback** - Friendli → Bedrock → Mock
+- ✅ **Real savings insights** - From mock data: $366/month potential savings
+- ✅ **RAG citations** - Every answer backed by AWS docs
+- ✅ **Visual diagrams** - Excalidraw integration with CFN export
 
 ## 🧪 Development
 

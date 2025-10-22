@@ -2,51 +2,104 @@
 
 Get up and running with Nimbus Copilot in 5 minutes!
 
-## Option 1: Basic Setup (No External Dependencies)
+## Option 1: Mock Mode (Recommended for First-Time Users)
 
-**Perfect for:** Testing, development, and exploring features
+**Perfect for:** Testing, development, and exploring features without any credentials
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/wildhash/nimbus.git
 cd nimbus
 
-# 2. Install core dependencies
-pip install streamlit pandas plotly pyyaml python-dotenv boto3
+# 2. Install core dependencies only
+pip install streamlit pandas pyyaml python-dotenv
 
-# 3. Run with mock data (no configuration needed!)
-streamlit run frontend/app.py
+# 3. Set mock mode (or skip - it's the default!)
+export USE_MOCK_DATA=true
+
+# 4. Run the app
+streamlit run app.py
 ```
 
 That's it! Open http://localhost:8501 and start using Nimbus Copilot with realistic mock data.
 
-## Option 2: Full Setup with LLM Providers
+### What Works in Mock Mode
 
-**Perfect for:** Production use with real AI responses
+✅ **All 4 AI agents** - Returns helpful mock responses  
+✅ **Cost Analysis** - Uses `mock_data/aws_bill.json` (~$1,247/month with $366 savings opportunities)  
+✅ **RAG Search** - Uses 10 curated AWS documentation stubs  
+✅ **Excalidraw Diagrams** - Generates and saves diagrams locally  
+✅ **CloudFormation** - Generates templates from diagrams  
+✅ **All UI Features** - Badges, reasoning traces, citations  
+
+### Mock Data Files
+
+- `mock_data/aws_bill.json` - Sample AWS bill with optimization opportunities
+- `src/services/rag_service.py` - Curated documentation stubs
+- `mock_data/diagrams/` - Saved Excalidraw boards
+
+## Option 2: Live Mode (LLM Providers Only)
+
+**Perfect for:** Getting real AI responses while using mock AWS data
 
 ```bash
 # 1. Clone and install
 git clone https://github.com/wildhash/nimbus.git
 cd nimbus
-pip install -r requirements.txt
+pip install streamlit pandas pyyaml python-dotenv
 
 # 2. Configure environment
 cp .env.example .env
 
-# Edit .env and add your API keys:
-# FRIENDLI_API_KEY=your_key_here
-# AWS_ACCESS_KEY_ID=your_key_here
-# AWS_SECRET_ACCESS_KEY=your_secret_here
+# Edit .env and add ONLY your LLM API keys:
+# USE_FRIENDLI=1
+# FRIENDLI_TOKEN=your_friendli_token_here
+# Or configure AWS Bedrock credentials for fallback
 
-# 3. Run the app
-streamlit run frontend/app.py
+# 3. Keep mock AWS data
+# USE_MOCK_DATA=true  # (default)
+
+# 4. Run the app
+streamlit run app.py
 ```
 
-The app will use Friendli.ai (fast) → Bedrock (fallback) → Mock (if both unavailable)
+The app will use:
+- **LLM**: Friendli.ai (fast) → AWS Bedrock (fallback) → Mock (if both unavailable)
+- **AWS Data**: Mock bill and cost data
+- **RAG**: Curated documentation stubs
 
-## Option 3: Complete Setup with Semantic Search
+## Option 3: Full Live Mode
 
-**Perfect for:** Maximum performance with RAG capabilities
+**Perfect for:** Production use with real AWS account data
+
+```bash
+# 1. Clone and install
+git clone https://github.com/wildhash/nimbus.git
+cd nimbus
+pip install streamlit pandas pyyaml python-dotenv boto3
+
+# 2. Configure environment
+cp .env.example .env
+
+# Edit .env with your credentials:
+# USE_MOCK_DATA=false
+# FRIENDLI_TOKEN=your_friendli_token_here
+# AWS_ACCESS_KEY_ID=your_aws_access_key
+# AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+# AWS_REGION=us-east-1
+# BEDROCK_REGION=us-east-1
+
+# 3. Run the app
+streamlit run app.py
+
+# 4. Toggle "Live Cost Explorer" in the Cost Analysis tab
+```
+
+**Note**: Live mode requires AWS IAM permissions. See README.md "Security & IAM" section for minimal policy.
+
+## Option 4: Complete Setup with Weaviate
+
+**Perfect for:** Maximum performance with semantic search over AWS docs
 
 ```bash
 # 1. Start Weaviate
@@ -59,7 +112,7 @@ docker run -d -p 8080:8080 \
 # 2. Clone and install
 git clone https://github.com/wildhash/nimbus.git
 cd nimbus
-pip install -r requirements.txt
+pip install streamlit pandas pyyaml python-dotenv weaviate-client
 
 # 3. Initialize Weaviate
 python scripts/weaviate_schema.py
@@ -67,13 +120,40 @@ python scripts/seed_min_docs.py
 
 # 4. Configure environment
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env with:
+# WEAVIATE_URL=http://localhost:8080
 
 # 5. Run the app
-streamlit run frontend/app.py
+streamlit run app.py
 ```
 
 Now you have the full experience with semantic search over AWS documentation!
+
+## Toggling Between Mock and Live
+
+### In the UI
+- Use the **sidebar checkbox** "Use Mock Data"
+- Costs tab has **"Live Cost Explorer"** toggle
+
+### In .env
+```bash
+# Mock mode (default)
+USE_MOCK_DATA=true
+
+# Live mode
+USE_MOCK_DATA=false
+```
+
+### Testing Both Modes
+```bash
+# Test mock mode
+export USE_MOCK_DATA=true
+streamlit run app.py
+
+# Test live mode (in another terminal)
+export USE_MOCK_DATA=false
+streamlit run app.py
+```
 
 ## First Steps in the App
 
