@@ -6,6 +6,7 @@ import time
 import logging
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
+from src.services.llm_providers import friendli_complete, bedrock_complete
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -88,17 +89,51 @@ class ModelRouter:
         Returns:
             Dictionary with keys: text, provider, latency_ms
         """
-        response = self.generate(
-            prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=0.7
+        self.stats["call_count"] += 1
+
+        # Determine whether to try Friendli first based on env flag
+        try_friendli = os.getenv(turbo_env, os.getenv("USE_FRIENDLI", "1")) == "1"
+
+        last_error: Optional[Exception] = None
+
+        # Helper to record and return
+        def _result(text: str, provider: str, started_at: float) -> Dict[str, Any]:
+            latency_ms = int((time.time() - started_at) * 1000)
+            self.stats["total_latency_ms"] += latency_ms
+            if provider == "friendli":
+                self.stats["friendli_calls"] += 1
+            elif provider == "bedrock":
+                self.stats["bedrock_calls"] += 1
+            else:
+                self.stats["mock_calls"] += 1
+            return {"text": text, "provider": provider, "latency_ms": latency_ms}
+
+        providers_order = ["friendli", "bedrock"] if try_friendli else ["bedrock", "friendli"]
+
+        # Attempt providers in order using thin wrappers; swallow errors and log
+        for provider in providers_order:
+            started = time.time()
+            try:
+                if provider == "friendli":
+                    # Attempt Friendli only if package/token available; wrapper raises otherwise
+                    text = friendli_complete(prompt, max_tokens=max_tokens, model_id="llama-3.1-70b-instruct")
+                    return _result(text, "friendli", started)
+                else:
+                    text = bedrock_complete(prompt, max_tokens=max_tokens, model_hint=model_hint)
+                    return _result(text, "bedrock", started)
+            except Exception as e:
+                last_error = e
+                # Never leak stack traces to UI
+                logger.warning(f"Provider {provider} failed: {str(e)}")
+                continue
+
+        # All providers failed; return friendly mock message
+        logger.info("All providers failed, returning mock response")
+        return _result(
+            "I apologize, but I'm unable to connect to the LLM providers at the moment. Please check your API credentials.",
+            "mock",
+            time.time(),
         )
-        
-        return {
-            "text": response.text,
-            "provider": response.provider.lower(),
-            "latency_ms": int(response.latency_ms)
-        }
     
     def generate(
         self,
@@ -198,7 +233,7 @@ class ModelRouter:
         
         return ModelResponse(
             text=response.choices[0].message.content,
-            provider="Friendli.ai",
+            provider="friendli",
             latency_ms=round(latency_ms, 2),
             model="meta-llama-3.1-70b-instruct"
         )
@@ -239,7 +274,7 @@ class ModelRouter:
         
         return ModelResponse(
             text=response_body['content'][0]['text'],
-            provider="AWS Bedrock",
+            provider="bedrock",
             latency_ms=round(latency_ms, 2),
             model="Claude 3 Sonnet"
         )
