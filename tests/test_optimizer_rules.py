@@ -8,146 +8,95 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from backend.utils.aws_clients import AWSClients
+from src.agents.cost_optimizer import CostOptimizerAgent
+from src.models.router import ModelRouter
 
 
-def test_idle_ec2_detection():
-    """Test idle EC2 instance detection."""
-    print("Test: Idle EC2 Instance Detection")
+def test_rule_based_optimization():
+    """Test deterministic rule-based optimization."""
+    print("Test: Rule-based Optimization")
     
-    aws = AWSClients()
-    instances = aws.list_idle_ec2_instances()
+    router = ModelRouter()
+    optimizer = CostOptimizerAgent(router)
     
-    assert instances is not None
-    assert isinstance(instances, list)
+    result = optimizer.analyze_resources()
     
-    if instances:
-        # Verify structure
-        first = instances[0]
-        assert 'instance_id' in first
-        assert 'instance_type' in first
+    assert result is not None
+    assert 'findings' in result
+    assert 'total' in result
+    assert isinstance(result['findings'], list)
+    assert isinstance(result['total'], (int, float))
+    
+    print(f"✓ Rule-based optimization working")
+    print(f"  Findings: {len(result['findings'])}")
+    print(f"  Total savings: ${result['total']:.2f}/month\n")
+
+
+def test_finding_structure():
+    """Test that findings have correct structure."""
+    print("Test: Finding Structure")
+    
+    router = ModelRouter()
+    optimizer = CostOptimizerAgent(router)
+    
+    result = optimizer.analyze_resources()
+    findings = result['findings']
+    
+    if findings:
+        first = findings[0]
+        assert 'type' in first
+        assert 'resource' in first
+        assert 'action' in first
+        assert 'est_savings' in first
         
-        # Calculate total potential savings
-        total_savings = sum(inst.get('monthly_cost', 0) for inst in instances)
-        
-        print(f"✓ Found {len(instances)} potentially idle instances")
-        print(f"  Total potential savings: ${total_savings:.2f}/month")
-        
-        for inst in instances[:3]:  # Show first 3
-            print(f"  - {inst['instance_id']}: ${inst.get('monthly_cost', 0):.2f}/mo")
+        print(f"✓ Finding structure valid")
+        print(f"  Sample finding:")
+        print(f"    Type: {first['type']}")
+        print(f"    Resource: {first['resource']}")
+        print(f"    Savings: ${first['est_savings']:.2f}/month\n")
     else:
-        print("✓ No idle instances found")
-    
-    print()
+        print("✓ No findings (expected if no data)\n")
 
 
-def test_old_snapshot_detection():
-    """Test old snapshot detection."""
-    print("Test: Old Snapshot Detection")
+def test_savings_calculation():
+    """Test savings calculations."""
+    print("Test: Savings Calculation")
     
-    aws = AWSClients()
-    snapshots = aws.list_old_snapshots(days_old=90)
+    router = ModelRouter()
+    optimizer = CostOptimizerAgent(router)
     
-    assert snapshots is not None
-    assert isinstance(snapshots, list)
+    result = optimizer.analyze_resources()
     
-    if snapshots:
-        first = snapshots[0]
-        assert 'snapshot_id' in first
-        assert 'volume_size' in first
+    # Manual sum check
+    manual_total = sum(f.get('est_savings', 0) for f in result['findings'])
+    
+    assert abs(result['total'] - manual_total) < 0.01  # Allow for rounding
+    
+    print(f"✓ Savings calculated correctly")
+    print(f"  Calculated total: ${result['total']:.2f}/month")
+    print(f"  Manual sum: ${manual_total:.2f}/month\n")
+
+
+def test_findings_sorted():
+    """Test that findings are sorted by savings."""
+    print("Test: Findings Sorted by Impact")
+    
+    router = ModelRouter()
+    optimizer = CostOptimizerAgent(router)
+    
+    result = optimizer.analyze_resources()
+    findings = result['findings']
+    
+    if len(findings) > 1:
+        # Check that findings are sorted descending by savings
+        for i in range(len(findings) - 1):
+            assert findings[i]['est_savings'] >= findings[i+1]['est_savings']
         
-        total_size = sum(snap.get('volume_size', 0) for snap in snapshots)
-        total_cost = sum(snap.get('monthly_cost', 0) for snap in snapshots)
-        
-        print(f"✓ Found {len(snapshots)} old snapshots")
-        print(f"  Total size: {total_size} GB")
-        print(f"  Monthly cost: ${total_cost:.2f}")
+        print(f"✓ Findings sorted by impact")
+        print(f"  Highest: ${findings[0]['est_savings']:.2f}/month")
+        print(f"  Lowest: ${findings[-1]['est_savings']:.2f}/month\n")
     else:
-        print("✓ No old snapshots found")
-    
-    print()
-
-
-def test_s3_lifecycle_opportunities():
-    """Test S3 lifecycle optimization detection."""
-    print("Test: S3 Lifecycle Opportunities")
-    
-    aws = AWSClients()
-    opportunities = aws.analyze_s3_lifecycle_opportunities()
-    
-    assert opportunities is not None
-    assert isinstance(opportunities, list)
-    
-    if opportunities:
-        first = opportunities[0]
-        assert 'bucket_name' in first
-        assert 'recommendation' in first
-        
-        total_savings = sum(opp.get('estimated_savings', 0) for opp in opportunities)
-        
-        print(f"✓ Found {len(opportunities)} S3 optimization opportunities")
-        print(f"  Total potential savings: ${total_savings:.2f}/month")
-        
-        for opp in opportunities[:3]:
-            print(f"  - {opp['bucket_name']}: ${opp.get('estimated_savings', 0):.2f}/mo")
-    else:
-        print("✓ All S3 buckets optimized")
-    
-    print()
-
-
-def test_cost_data_retrieval():
-    """Test cost data retrieval."""
-    print("Test: Cost Data Retrieval")
-    
-    aws = AWSClients()
-    cost_data = aws.get_cost_data()
-    
-    assert cost_data is not None
-    assert 'total_cost' in cost_data
-    assert 'cost_by_service' in cost_data
-    
-    total = cost_data['total_cost']
-    services = cost_data['cost_by_service']
-    
-    print(f"✓ Retrieved cost data")
-    print(f"  Total cost: ${total:.2f}")
-    print(f"  Services: {len(services)}")
-    
-    # Show top 3 services
-    top_services = sorted(services.items(), key=lambda x: x[1], reverse=True)[:3]
-    for service, cost in top_services:
-        print(f"  - {service}: ${cost:.2f}")
-    
-    print()
-
-
-def test_total_optimization_potential():
-    """Calculate total optimization potential."""
-    print("Test: Total Optimization Potential")
-    
-    aws = AWSClients()
-    
-    # Get all optimization opportunities
-    idle_instances = aws.list_idle_ec2_instances()
-    old_snapshots = aws.list_old_snapshots()
-    s3_opportunities = aws.analyze_s3_lifecycle_opportunities()
-    
-    # Calculate totals
-    ec2_savings = sum(inst.get('monthly_cost', 0) for inst in idle_instances)
-    snapshot_savings = sum(snap.get('monthly_cost', 0) for snap in old_snapshots)
-    s3_savings = sum(opp.get('estimated_savings', 0) for opp in s3_opportunities)
-    
-    total_savings = ec2_savings + snapshot_savings + s3_savings
-    
-    print(f"✓ Calculated total optimization potential")
-    print(f"  EC2 idle instances: ${ec2_savings:.2f}/mo")
-    print(f"  Old snapshots: ${snapshot_savings:.2f}/mo")
-    print(f"  S3 lifecycle: ${s3_savings:.2f}/mo")
-    print(f"  TOTAL: ${total_savings:.2f}/mo")
-    print()
-    
-    assert total_savings >= 0
+        print("✓ Sorting N/A (insufficient findings)\n")
 
 
 def main():
@@ -158,11 +107,10 @@ def main():
     print()
     
     tests = [
-        test_idle_ec2_detection,
-        test_old_snapshot_detection,
-        test_s3_lifecycle_opportunities,
-        test_cost_data_retrieval,
-        test_total_optimization_potential
+        test_rule_based_optimization,
+        test_finding_structure,
+        test_savings_calculation,
+        test_findings_sorted
     ]
     
     passed = 0

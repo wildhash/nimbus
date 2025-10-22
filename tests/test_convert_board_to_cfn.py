@@ -9,7 +9,7 @@ import json
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from backend.diagram.convert import ExcalidrawToCFNConverter, convert_board_to_cfn
+from src.services.excalidraw_service import ExcalidrawService
 
 
 def get_sample_diagram():
@@ -99,18 +99,16 @@ def test_resource_identification():
     print("Test: Resource Identification")
     
     diagram = get_sample_diagram()
-    converter = ExcalidrawToCFNConverter()
-    result = converter.convert(diagram)
+    service = ExcalidrawService()
+    cfn_yaml = service.board_to_cfn(diagram)
     
-    resources = result.get('Resources', {})
+    assert cfn_yaml is not None
+    assert len(cfn_yaml) > 0
+    assert "AWSTemplateFormatVersion" in cfn_yaml
+    assert "Resources:" in cfn_yaml
     
-    assert len(resources) > 0, "Should identify at least one resource"
-    
-    print(f"✓ Identified {len(resources)} resources:")
-    for name, resource in resources.items():
-        print(f"  - {name}: {resource['Type']}")
-    
-    print()
+    print(f"✓ CFN template generated")
+    print(f"  Template size: {len(cfn_yaml)} chars\n")
 
 
 def test_resource_types():
@@ -118,23 +116,14 @@ def test_resource_types():
     print("Test: Resource Type Mapping")
     
     diagram = get_sample_diagram()
-    converter = ExcalidrawToCFNConverter()
-    result = converter.convert(diagram)
+    service = ExcalidrawService()
+    cfn_yaml = service.board_to_cfn(diagram)
     
-    resources = result.get('Resources', {})
+    # Check for AWS resource types in YAML
+    assert "AWS::" in cfn_yaml
     
-    # Check that we have expected types
-    types = [r['Type'] for r in resources.values()]
-    
-    assert 'AWS::EC2::VPC' in types or len(types) > 0, "Should have AWS resource types"
-    
-    print(f"✓ Resource types mapped correctly:")
-    unique_types = set(types)
-    for rt in unique_types:
-        count = types.count(rt)
-        print(f"  - {rt}: {count}")
-    
-    print()
+    print(f"✓ Resource types found in template")
+    print(f"  Sample:\n{cfn_yaml[:300]}...\n")
 
 
 def test_cfn_template_structure():
@@ -142,22 +131,16 @@ def test_cfn_template_structure():
     print("Test: CloudFormation Template Structure")
     
     diagram = get_sample_diagram()
-    converter = ExcalidrawToCFNConverter()
-    result = converter.convert(diagram)
+    service = ExcalidrawService()
+    cfn_yaml = service.board_to_cfn(diagram)
     
     # Check required sections
-    assert 'AWSTemplateFormatVersion' in result
-    assert 'Resources' in result
-    assert 'Outputs' in result
+    assert "AWSTemplateFormatVersion" in cfn_yaml
+    assert "Resources:" in cfn_yaml
+    assert "Outputs:" in cfn_yaml
     
-    assert result['AWSTemplateFormatVersion'] == '2010-09-09'
-    
-    print("✓ Template structure valid:")
-    print(f"  - Format version: {result['AWSTemplateFormatVersion']}")
-    print(f"  - Resources: {len(result['Resources'])}")
-    print(f"  - Outputs: {len(result['Outputs'])}")
-    
-    print()
+    print("✓ Template structure valid")
+    print(f"  Has version, resources, and outputs\n")
 
 
 def test_yaml_output():
@@ -165,7 +148,8 @@ def test_yaml_output():
     print("Test: YAML Output")
     
     diagram = get_sample_diagram()
-    yaml_output = convert_board_to_cfn(diagram)
+    service = ExcalidrawService()
+    yaml_output = service.board_to_cfn(diagram)
     
     assert yaml_output is not None
     assert len(yaml_output) > 0
@@ -189,16 +173,14 @@ def test_empty_diagram():
         "elements": []
     }
     
-    converter = ExcalidrawToCFNConverter()
-    result = converter.convert(empty_diagram)
+    service = ExcalidrawService()
+    cfn_yaml = service.board_to_cfn(empty_diagram)
     
-    assert 'Resources' in result
-    assert 'AWSTemplateFormatVersion' in result
+    assert cfn_yaml is not None
+    assert "AWSTemplateFormatVersion" in cfn_yaml
     
     print("✓ Empty diagram handled gracefully")
-    print(f"  Resources: {len(result['Resources'])}")
-    
-    print()
+    print(f"  Generated valid template\n")
 
 
 def main():

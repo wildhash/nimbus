@@ -8,7 +8,7 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from backend.utils.model_router import ModelRouter
+from src.models.router import ModelRouter
 
 
 def test_router_initialization():
@@ -25,6 +25,7 @@ def test_fallback_to_mock():
     
     # Temporarily disable environment variables
     old_friendli = os.environ.get('FRIENDLI_API_KEY')
+    old_friendli_token = os.environ.get('FRIENDLI_TOKEN')
     old_aws_key = os.environ.get('AWS_ACCESS_KEY_ID')
     
     if 'FRIENDLI_API_KEY' in os.environ:
@@ -40,13 +41,15 @@ def test_fallback_to_mock():
     # Restore environment
     if old_friendli:
         os.environ['FRIENDLI_API_KEY'] = old_friendli
+    if old_friendli_token:
+        os.environ['FRIENDLI_TOKEN'] = old_friendli_token
     if old_aws_key:
         os.environ['AWS_ACCESS_KEY_ID'] = old_aws_key
     
-    assert response.provider == "mock"
-    assert "unable to connect" in response.text.lower()
+    assert response["provider"] == "mock"
+    assert "unable to connect" in response["text"].lower()
     print(f"✓ Correctly fell back to mock provider")
-    print(f"  Response: {response.text[:80]}...\n")
+    print(f"  Response: {response['text'][:80]}...\n")
 
 
 def test_stats_tracking():
@@ -79,8 +82,8 @@ def test_prefer_provider():
     
     router = ModelRouter()
     
-    # Request Bedrock preference
-    response = router.llm_complete("Test", prefer_provider="bedrock")
+    # Request with default provider
+    response = router.generate("Test prompt", prefer_provider="bedrock")
     
     # Will be bedrock if available, otherwise fallback
     print(f"✓ Provider preference respected")
