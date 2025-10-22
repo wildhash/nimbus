@@ -57,10 +57,22 @@ git clone https://github.com/wildhash/nimbus.git
 cd nimbus
 ```
 
-2. Install dependencies:
+2. Install core dependencies:
 ```bash
-pip install -r requirements.txt
+pip install streamlit pandas numpy plotly pyyaml python-dotenv requests boto3
 ```
+
+   **Optional dependencies** (for enhanced features):
+   ```bash
+   # For LLM providers (optional - app works with mock responses)
+   pip install friendli  # Friendli.ai provider
+   
+   # For Weaviate RAG (optional - app has built-in mock data)
+   pip install weaviate-client
+   
+   # For LlamaIndex orchestration (optional - basic routing works without it)
+   pip install llama-index llama-index-core
+   ```
 
 3. Set up environment variables:
 ```bash
@@ -72,6 +84,10 @@ cp .env.example .env
 ```bash
 streamlit run app.py
 ```
+   Or use the startup script:
+   ```bash
+   ./run.sh
+   ```
 
 5. Open your browser to `http://localhost:8501`
 

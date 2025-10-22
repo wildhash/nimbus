@@ -39,19 +39,19 @@ class AgentOrchestrator:
         # Simple keyword-based routing
         # In production, this would use LlamaIndex's more sophisticated routing
         
-        # Setup-related keywords
+        # Optimization-related keywords (check first for priority)
         if any(word in query_lower for word in [
+            "optimize", "reduce cost", "reduce my cost", "save money", "cheaper",
+            "expensive", "savings", "cut cost"
+        ]):
+            return "optimize"
+        
+        # Setup-related keywords
+        elif any(word in query_lower for word in [
             "setup", "deploy", "create", "infrastructure", "cloudformation",
             "provision", "launch", "configure"
         ]):
             return "setup"
-        
-        # Documentation-related keywords
-        elif any(word in query_lower for word in [
-            "how to", "what is", "explain", "documentation", "docs",
-            "guide", "tutorial", "learn"
-        ]):
-            return "docs"
         
         # Billing-related keywords
         elif any(word in query_lower for word in [
@@ -60,12 +60,12 @@ class AgentOrchestrator:
         ]):
             return "bills"
         
-        # Optimization-related keywords
+        # Documentation-related keywords
         elif any(word in query_lower for word in [
-            "optimize", "reduce cost", "save money", "cheaper",
-            "expensive", "savings", "cut costs"
+            "how to", "what is", "explain", "documentation", "docs",
+            "guide", "tutorial", "learn", "difference"
         ]):
-            return "optimize"
+            return "docs"
         
         # Default to docs for general questions
         else:
